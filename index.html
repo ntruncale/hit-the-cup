@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hit the Cup! – Projectile Motion Simulator</title>
+<meta name="description" content="Predict where a projectile lands, then play the Target Game: calculate the launch speed that lands the bird in the cup.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M26 14 L20 2 L36 12 Z' fill='%23d62828'/%3E%3Ccircle cx='30' cy='35' r='22' fill='%23e5383b' stroke='%236a040f' stroke-width='2'/%3E%3Cellipse cx='42' cy='32' rx='8' ry='9' fill='%231b1b1b'/%3E%3Ccircle cx='40' cy='28' r='3.5' fill='%23fff'/%3E%3Cpath d='M46 30 L62 36 L46 41 Z' fill='%23f4a261'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #eef6fb; --card: #ffffff; --ink: #1f2937; --muted: #5b6472;
+    --navy: #1d3557; --red: #d62828; --red-dark: #a4161a; --green: #2b9348;
+    --blue: #1971c2; --line: #d6e0ea; --soft: #f3f7fb; --radius: 14px;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink);
+         font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 16px; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+               gap: 12px; margin-bottom: 14px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand canvas { width: 52px; height: 52px; flex: none; }
+  .brand h1 { margin: 0; font-size: 1.75rem; line-height: 1.1; color: var(--navy); letter-spacing: -0.01em; }
+  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 0.95rem; }
+
+  .tabs { display: inline-flex; background: #dbe7f1; border-radius: 999px; padding: 4px; gap: 4px; }
+  .tabs button { border: 0; background: transparent; font: inherit; font-weight: 650; color: var(--navy);
+                 padding: 8px 18px; border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: #fff; box-shadow: 0 1px 3px rgba(29,53,87,.2); }
+  .tabs button:disabled { cursor: not-allowed; opacity: .6; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+  @media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+          box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+  .stage { padding: 10px; }
+  .canvas-wrap { position: relative; border-radius: 10px; overflow: hidden; }
+  #scene { display: block; width: 100%; }
+  .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+             background: rgba(238,246,251,.88); padding: 14px; overflow-y: auto; }
+  .overlay[hidden] { display: none; }
+  .overlay .box { background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+                  padding: 20px 22px; max-width: 540px; width: 100%; text-align: center;
+                  box-shadow: 0 12px 32px rgba(29,53,87,.16); }
+  .overlay h2 { margin: 0 0 4px; color: var(--navy); font-size: 1.7rem; }
+  .overlay p { margin: 6px 0; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  @media (max-width: 520px) {
+    .choices { grid-template-columns: 1fr; margin-top: 8px; }
+    .choice span { display: none; }
+    .overlay { padding: 8px; }
+    .overlay .box { padding: 12px 14px; }
+    .overlay h2 { font-size: 1.35rem; }
+    .overlay .huge { font-size: 1.3rem; }
+    .stars { font-size: 2rem; }
+  }
+  .choice { text-align: left; border: 2px solid var(--line); background: #fff; border-radius: 12px; padding: 12px 14px;
+            font: inherit; cursor: pointer; color: var(--ink); }
+  .choice:hover { border-color: var(--red); }
+  .choice b { display: block; color: var(--navy); font-size: 1.1rem; margin-bottom: 2px; }
+  .choice span { color: var(--muted); font-size: .92rem; }
+  .stars { font-size: 2.8rem; color: #ffba08; letter-spacing: 6px; line-height: 1.2; }
+
+  .status { min-height: 76px; padding: 10px 6px 2px; }
+  .status p { margin: 2px 0; }
+  .big { font-size: 1.2rem; font-weight: 700; }
+  .huge { font-size: 1.65rem; font-weight: 800; }
+  .ok { color: var(--green); } .bad { color: var(--red); } .info { color: var(--blue); } .navy { color: var(--navy); }
+
+  .side { padding: 16px 18px; }
+  .side h2 { margin: 2px 0 8px; color: var(--navy); font-size: 1.25rem; }
+  fieldset { border: 0; padding: 0; margin: 0 0 14px; min-width: 0; }
+  legend { font-weight: 700; color: var(--navy); margin-bottom: 4px; padding: 0; }
+  label.field { display: grid; grid-template-columns: 1fr 112px; align-items: center; gap: 8px; margin: 6px 0; font-size: .95rem; }
+  input[type=number], select { width: 100%; font: inherit; padding: 7px 9px; border: 1px solid #b8c6d4;
+                               border-radius: 8px; background: #fff; color: var(--ink); }
+  input[type=number] { text-align: right; }
+  label.field select { grid-column: 2; }
+  input:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid #9cc3ec; outline-offset: 1px; }
+  .radio { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; font-size: .95rem; cursor: pointer; }
+  .radio input { margin-top: 4px; }
+  .readout { background: var(--soft); border-radius: 8px; padding: 6px 10px; font-size: .95rem; margin-top: 6px; }
+  .hint { color: var(--muted); font-size: .88rem; margin: 2px 0 0; }
+
+  .btn { font: inherit; font-weight: 700; border-radius: 10px; padding: 10px 16px; cursor: pointer; border: 2px solid transparent; }
+  .btn.primary { background: var(--red); color: #fff; width: 100%; font-size: 1.1rem; }
+  .btn.primary:hover:not(:disabled) { background: var(--red-dark); }
+  .btn.secondary { background: #fff; color: var(--navy); border-color: #b8c6d4; }
+  .btn.secondary:hover:not(:disabled) { border-color: var(--navy); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row .btn { flex: 1; }
+  .realbox { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--line); }
+
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { display: inline-block; background: #e7eef6; color: var(--navy); border-radius: 999px; padding: 2px 10px; font-weight: 700; font-size: .85rem; }
+  .pill.score { background: #fff3cd; color: #7a5a00; }
+  .facts { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 3px; font-size: .95rem; }
+  .facts b { color: var(--navy); }
+  .formula { background: #fff7e6; border: 1px solid #f6d58e; border-radius: 10px; padding: 8px 12px; font-size: .95rem; margin: 10px 0; }
+  .history { font-size: .88rem; color: var(--muted); padding-left: 20px; margin: 10px 0 0; }
+  .history li.hit { color: var(--green); font-weight: 600; }
+
+  details.settings { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
+  summary { cursor: pointer; font-weight: 650; color: var(--navy); }
+
+  .log { margin-top: 16px; padding: 14px 16px; }
+  .log-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .log-head h2 { margin: 0; color: var(--navy); font-size: 1.2rem; }
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: center; white-space: nowrap; }
+  th { background: #d9e2f3; color: var(--navy); }
+  td.hit { color: var(--green); font-weight: 700; } td.miss { color: var(--red); font-weight: 700; }
+  footer { color: var(--muted); font-size: .88rem; text-align: center; padding: 18px 0 6px; }
+  footer a { color: var(--blue); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <canvas id="logo" width="104" height="104" aria-hidden="true"></canvas>
+      <div>
+        <h1>Hit the Cup!</h1>
+        <p>Projectile motion simulator · distances in cm, times in s</p>
+      </div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Mode">
+      <button role="tab" id="tab-lab" data-mode="lab" aria-selected="true">Lab simulator</button>
+      <button role="tab" id="tab-game" data-mode="game" aria-selected="false">Target game</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="card stage">
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="scene" role="img" aria-label="Animation of the bird flying off the desk toward the cup"></canvas>
+        <div class="overlay" id="overlay"><div class="box" id="overlayBox"></div></div>
+      </div>
+      <div class="status" id="status" aria-live="polite"></div>
+    </section>
+
+    <aside class="card side">
+      <!-- ================= LAB SIMULATOR ================= -->
+      <div id="labPanel">
+        <form id="labForm" novalidate>
+          <fieldset>
+            <legend>Step 1 · Launch speed</legend>
+            <label class="radio"><input type="radio" name="method" value="1" checked><span><b>1</b> – Timed the marble rolling across the desk</span></label>
+            <label class="radio"><input type="radio" name="method" value="2"><span><b>2</b> – Did one practice launch and measured where it landed</span></label>
+            <label class="radio"><input type="radio" name="method" value="3"><span><b>3</b> – I already know the speed</span></label>
+            <div data-method="1">
+              <label class="field">Roll distance across the desk (cm)<input type="number" id="rollD" value="50" step="any" min="0" inputmode="decimal"></label>
+              <label class="field">Time for that roll (s)<input type="number" id="rollT" value="0.5" step="any" min="0" inputmode="decimal"></label>
+            </div>
+            <div data-method="2" hidden>
+              <label class="field">Desk height for the practice launch (cm)<input type="number" id="pracH" value="76" step="any" min="0" inputmode="decimal"></label>
+              <label class="field">Landing distance from the desk edge (cm)<input type="number" id="pracR" value="40" step="any" min="0" inputmode="decimal"></label>
+            </div>
+            <div data-method="3" hidden>
+              <label class="field">Launch speed (cm/s)<input type="number" id="knownV" value="100" step="any" min="0" inputmode="decimal"></label>
+            </div>
+            <div class="readout" id="speedReadout"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Step 2 · Launch height</legend>
+            <label class="field">Launch point above the floor (cm)<input type="number" id="labH" value="76" step="any" min="0" inputmode="decimal"></label>
+            <p class="hint">Usually the height of the desk top.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Step 3 · Launch angle</legend>
+            <label class="field">Angle (degrees)<input type="number" id="labAngle" value="0" step="any" min="-60" max="85" inputmode="decimal"></label>
+            <p class="hint">0 = the marble rolls straight off the desk (flat).</p>
+          </fieldset>
+          <fieldset>
+            <legend>Step 4 · The cup</legend>
+            <label class="field">Top of the cup above the floor (cm)<input type="number" id="labCup" value="10" step="any" min="0" inputmode="decimal"></label>
+            <p class="hint">Cup sitting on the floor = just the cup's height.</p>
+          </fieldset>
+          <button class="btn primary" type="submit" id="labGo">Launch!</button>
+        </form>
+
+        <form id="realForm" class="realbox" novalidate hidden>
+          <fieldset>
+            <legend>Now try it for real!</legend>
+            <p class="hint">Put the cup where the simulator says and launch the marble.</p>
+            <label class="field">Where did it ACTUALLY land? (cm from the desk edge)<input type="number" id="realX" step="any" min="0" inputmode="decimal"></label>
+            <div class="row">
+              <button class="btn secondary" type="submit">Check</button>
+              <button class="btn secondary" type="button" id="realSkip">Skip</button>
+            </div>
+          </fieldset>
+        </form>
+      </div>
+
+      <!-- ================= TARGET GAME ================= -->
+      <div id="gamePanel" hidden></div>
+
+      <details class="settings">
+        <summary>Teacher settings</summary>
+        <label class="field">Gravity
+          <select id="gravity">
+            <option value="980">Earth – 980 cm/s²</option>
+            <option value="162">Moon – 162 cm/s²</option>
+            <option value="371">Mars – 371 cm/s²</option>
+          </select>
+        </label>
+        <label class="field">Cup opening diameter (cm)<input type="number" id="cupD" value="8" step="any" min="1" inputmode="decimal"></label>
+        <p class="hint">A shot counts as a hit when it reaches the cup's top within half this diameter of the cup's center.</p>
+      </details>
+    </aside>
+  </div>
+
+  <section class="card log" id="logCard">
+    <div class="log-head">
+      <h2>Lab runs</h2>
+      <div class="row">
+        <button class="btn secondary" type="button" id="copyLog">Copy table for Excel</button>
+        <button class="btn secondary" type="button" id="clearLog">Clear</button>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Run</th><th>Speed (cm/s)</th><th>Height (cm)</th><th>Angle (°)</th><th>Cup top (cm)</th><th>Predicted landing (cm)</th><th>Time in air (s)</th><th>Real landing (cm)</th><th>Off by (cm)</th><th>% error</th><th>Result</th></tr></thead>
+        <tbody id="logBody"></tbody>
+      </table>
+    </div>
+    <p class="hint" id="logEmpty">Each launch is added here so you can copy it into your data table.</p>
+  </section>
+
+  <footer>
+    Physics model: no air resistance · g = 980 cm/s² unless changed in Teacher settings ·
+    <a href="hit_the_cup.py" download>Download the Python version</a>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ------------------------- SETTINGS (match hit_the_cup.py) -------------------------
+  const CUP_PICTURE_HEIGHT = 10;      // cm, only used to draw the cup
+  const SLOW_MOTION_SECONDS = 2.5;    // how long the on-screen flight takes
+  const GAME_LEVELS = [               // name, closest cup, farthest cup, cup-top height (null = on the floor)
+    { name: 'Cup on the floor', near: 35, far: 60, raised: null },
+    { name: 'Cup farther away', near: 70, far: 120, raised: null },
+    { name: 'Cup on a stool', near: 40, far: 80, raised: 45 },
+  ];
+  const TRIES_PER_LEVEL = 3;
+  const FLOOR_PX = 56;
+
+  const $ = id => document.getElementById(id);
+  const canvas = $('scene');
+  const ctx = canvas.getContext('2d');
+  let W = 800, H = 460, DPR = 1;
+  let view = { s: 1, ox: 0, floorY: 400, xmin: 0, xmax: 100 };
+  let busy = false;
+  let mode = 'lab';
+
+  const G = () => parseFloat($('gravity').value) || 980;
+  const CUP_D = () => { const v = parseFloat($('cupD').value); return v > 0 ? v : 8; };
+  const num = id => { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : NaN; };
+  const fmt = n => String(Math.round(n * 1000) / 1000);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // On phones the controls sit below the animation, so bring the animation into view when launching.
+  const showStage = () => { if (window.matchMedia('(max-width: 920px)').matches) $('canvasWrap').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+
+  // ------------------------------- the red bird -------------------------------
+  // Drawn facing right: x = forward, y = up (pixels). Same shapes as the Python version.
+  const circlePts = (cx, cy, r, n = 18) => Array.from({ length: n }, (_, i) => [cx + r * Math.cos(2 * Math.PI * i / n), cy + r * Math.sin(2 * Math.PI * i / n)]);
+  const ellipsePts = (cx, cy, rx, ry, n = 16) => Array.from({ length: n }, (_, i) => [cx + rx * Math.cos(2 * Math.PI * i / n), cy + ry * Math.sin(2 * Math.PI * i / n)]);
+  const BIRD = [
+    [[[-9, 3], [-21, 9], [-23, 2], [-20, -5], [-9, -3]], '#9d0208', '#6a040f'],   // tail
+    [[[-2, 10], [5, 10], [-4, 17], [-9, 21], [-6, 15]], '#d62828', '#6a040f'],    // crest
+    [circlePts(0, 0, 11.5, 28), '#e5383b', '#6a040f'],                            // body
+    [ellipsePts(-3, -2, 7, 4.5), '#a4161a', '#6a040f'],                           // wing
+    [ellipsePts(9, 1, 4.5, 5.5), '#1b1b1b', '#1b1b1b'],                           // face mask
+    [[[10, 4], [19, 0.5], [10, -2.5]], '#f4a261', '#9c4a1a'],                     // beak
+    [circlePts(6.5, 4.5, 2.3, 12), '#ffffff', '#1b1b1b'],                         // eye
+    [circlePts(7.2, 4.5, 1.1, 10), '#000000', '#000000'],                         // pupil
+  ];
+  function drawBird(c, px, py, headingDeg, scale) {
+    c.save();
+    c.translate(px, py);
+    c.rotate(-headingDeg * Math.PI / 180);
+    c.scale(scale, -scale);
+    c.lineWidth = 1 / scale;
+    c.lineJoin = 'round';
+    for (const [pts, fill, stroke] of BIRD) {
+      c.beginPath();
+      pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
+      c.closePath();
+      c.fillStyle = fill; c.fill();
+      c.strokeStyle = stroke; c.stroke();
+    }
+    c.restore();
+  }
+  const birdScale = () => Math.max(0.85, Math.min(1.35, W / 800)) * 1.15;
+
+  // ------------------------------- the scene -------------------------------
+  const freshParts = () => ({
+    trail: [], oldTrails: [], marks: [], realX: null, particles: [], puff: [],
+    flash: null, boom: null, cupFeathers: [], bird: { x: 0, y: 0, heading: 0, visible: true },
+  });
+  let scene = null;
+  function setScene(opts) {
+    scene = Object.assign({ h: 76, angle: 0, cupX: null, cupTop: 10, span: 100, top: 76, cupLabel: false }, freshParts(), opts);
+    scene.bird.y = scene.h;
+    computeView();
+    draw();
+  }
+  function computeView() {
+    const span = scene.span, xmin = -0.35 * span, xmax = 1.12 * span;
+    const worldW = xmax - xmin, worldH = Math.max(scene.top, 1) * 1.12;
+    const s = Math.min((W - 24) / worldW, (H - FLOOR_PX - 28) / worldH);
+    const ox = W / 2 - (xmin + xmax) / 2 * s;
+    view = { s, ox, floorY: H - FLOOR_PX, xmin: -ox / s, xmax: (W - ox) / s };
+  }
+  const X = x => view.ox + x * view.s;
+  const Y = y => view.floorY - y * view.s;
+  const stoolHalf = () => Math.max(3 * CUP_D(), 30 / view.s) / 2;
+
+  function niceStep(raw) {
+    for (const s of [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000, 10000]) if (s >= raw) return s;
+    return 20000;
+  }
+  function line(x1, y1, x2, y2, color, width = 2) {
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.stroke();
+  }
+  function box(x, y, w, h, fill, stroke = '#3d2b1f') {
+    ctx.fillStyle = fill; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+  }
+  function poly(pts, fill, stroke, width = 1.5) {
+    ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill();
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.lineJoin = 'round'; ctx.stroke(); }
+  }
+  function dot(x, y, r, color) { ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fillStyle = color; ctx.fill(); }
+  function text(str, x, y, { size = 12, color = '#222', align = 'center', weight = 400 } = {}) {
+    ctx.font = `${weight} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif`;
+    ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(str, x, y);
+  }
+
+  function drawFloor() {
+    const fy = view.floorY;
+    ctx.fillStyle = '#e3d5b8'; ctx.fillRect(0, fy, W, H - fy);
+    line(0, fy, W, fy, '#7f5539', 3);
+    const step = niceStep(Math.max(view.xmax / 10, 46 / view.s));
+    for (let i = 0; i * step <= view.xmax; i++) {
+      const x = X(i * step);
+      line(x, fy, x, fy + 8, '#7f5539', 2);
+      text(fmt(i * step), x, fy + 24, { color: '#5c3d2e' });
+    }
+    text('distance from the edge of the desk (cm)', W - 10, fy + 46, { color: '#5c3d2e', align: 'right' });
+  }
+  function drawDesk() {
+    const h = scene.h, span = scene.span, deskLeft = -0.3 * span;
+    const xL = X(deskLeft), xR = X(0), yTop = Y(h), fy = view.floorY, th = 8, leg = 8;
+    box(xR - 3 * leg, yTop + th, leg, fy - yTop - th, '#8b5e34');
+    box(xL + leg, yTop + th, leg, fy - yTop - th, '#8b5e34');
+    box(xL, yTop, xR - xL, th, '#b07d4f');
+    // desk-height label: between the legs if it fits, otherwise outside the back leg (or past the front leg)
+    ctx.font = '700 12px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+    const lbl = `${fmt(h)} cm`, tw = ctx.measureText(lbl).width, ly = (yTop + fy) / 2 + 4;
+    if (tw + 14 <= (xR - 3 * leg) - (xL + 2 * leg)) text(lbl, xR - 3 * leg - 6, ly, { color: '#5c3d2e', align: 'right', weight: 700 });
+    else if (xL + leg - 6 - tw >= 4) text(lbl, xL + leg - 6, ly, { color: '#5c3d2e', align: 'right', weight: 700 });
+    else text(lbl, xR - 2 * leg + 6, ly, { color: '#5c3d2e', align: 'left', weight: 700 });
+    if (scene.angle === 0) {
+      const rampH = Math.max(3, Math.min(0.3 * h, 0.1 * span));
+      poly([[X(deskLeft + 0.04 * span), yTop], [X(-0.1 * span), yTop], [X(deskLeft + 0.04 * span), Y(h + rampH)]], '#adb5bd', '#6c757d');
+    } else {
+      const a = scene.angle * Math.PI / 180, arm = 0.08 * span;
+      line(X(-arm * Math.cos(a)), Y(h - arm * Math.sin(a)), xR, yTop, '#495057', 6);
+    }
+  }
+  function drawCup() {
+    if (scene.cupX == null) return;
+    const r = CUP_D() / 2, top = scene.cupTop, bottom = Math.max(0, top - CUP_PICTURE_HEIGHT), cx = scene.cupX;
+    if (bottom > 0) {
+      const hw = stoolHalf(), x1 = X(cx - hw), x2 = X(cx + hw), ys = Y(bottom);
+      box(x1 + 4, ys + 7, 6, view.floorY - ys - 7, '#7f5539');
+      box(x2 - 10, ys + 7, 6, view.floorY - ys - 7, '#7f5539');
+      box(x1, ys, x2 - x1, 7, '#9c6644');
+    }
+    poly([[X(cx - 0.75 * r), Y(bottom)], [X(cx + 0.75 * r), Y(bottom)], [X(cx + r), Y(top)], [X(cx - r), Y(top)]], '#ffffff', '#1d3557', 2);
+    const band = Y(bottom + 0.55 * (top - bottom));
+    const rb = 0.75 * r + 0.55 * 0.25 * r;
+    line(X(cx - rb) + 2, band, X(cx + rb) - 2, band, '#e5383b', 3);
+    if (scene.cupLabel) text(`${fmt(cx)} cm`, X(cx), Y(top) - 16, { size: 14, color: '#1d3557', weight: 800 });
+  }
+  function drawMarks() {
+    for (const x of scene.marks) {
+      line(X(x), view.floorY, X(x), view.floorY + 12, '#2b9348', 4);
+      text(`${x.toFixed(1)} cm`, X(x + CUP_D() / 2) + 10, Y(scene.cupTop) + 4, { size: 14, color: '#2b9348', align: 'left', weight: 800 });
+    }
+    if (scene.realX != null) {
+      dot(X(scene.realX), view.floorY, 6, '#1971c2');
+      text('real', X(scene.realX), view.floorY - 10, { size: 12, color: '#1971c2', weight: 700 });
+    }
+  }
+  function drawStar(f) {
+    const pts = Array.from({ length: 14 }, (_, k) => {
+      const rr = k % 2 === 0 ? f.r : 0.45 * f.r, a = Math.PI * k / 7 + 0.2;
+      return [f.x + rr * Math.cos(a), f.y - rr * Math.sin(a)];
+    });
+    poly(pts, f.c, null);
+  }
+  function draw() {
+    if (!scene) return;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const sky = ctx.createLinearGradient(0, 0, 0, view.floorY);
+    sky.addColorStop(0, '#d4eaf9'); sky.addColorStop(1, '#f4f9fd');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+    drawFloor();
+    drawDesk();
+    drawMarks();
+    for (const tr of scene.oldTrails) for (const p of tr) dot(X(p.x), Y(p.y), 2.2, 'rgba(73,80,87,.25)');
+    for (const p of scene.trail) dot(X(p.x), Y(p.y), 2.6, '#495057');
+    const b = scene.bird;
+    if (b.visible) drawBird(ctx, X(b.x), Y(b.y), b.heading, birdScale());
+    drawCup();
+    for (const f of scene.cupFeathers) dot(X(f.x), Y(f.y) - 2, 4, f.c);
+    for (const p of scene.puff) dot(p.x, p.y, p.r, p.c);
+    if (scene.flash) drawStar(scene.flash);
+    for (const p of scene.particles) dot(p.x, p.y, p.r, p.c);
+    if (scene.boom) {
+      ctx.font = '900 36px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+      ctx.textAlign = 'center'; ctx.lineJoin = 'round';
+      ctx.lineWidth = 6; ctx.strokeStyle = '#ffffff'; ctx.strokeText('BOOM!', scene.boom.x, scene.boom.y);
+      ctx.fillStyle = '#d62828'; ctx.fillText('BOOM!', scene.boom.x, scene.boom.y);
+    }
+  }
+
+  // ------------------------------- animation -------------------------------
+  function animate(seconds, step) {
+    return new Promise(resolve => {
+      const t0 = performance.now();
+      const frame = now => {
+        const p = Math.min(1, (now - t0) / 1000 / seconds);
+        const keepGoing = step(p) !== false;
+        draw();
+        if (p < 1 && keepGoing) requestAnimationFrame(frame); else resolve();
+      };
+      requestAnimationFrame(frame);
+    });
+  }
+
+  // Move the bird along its path from time t0 to t1 (physics seconds) over `seconds` of screen time.
+  async function flyPath(vx, vy, h, t0, t1, seconds, stopCheck) {
+    const g = G(), result = { onScreen: true, stopped: false };
+    let lastDot = -1;
+    scene.bird.visible = true;
+    await animate(Math.max(0.05, seconds), p => {
+      const t = t0 + (t1 - t0) * p, x = vx * t, y = h + vy * t - 0.5 * g * t * t;
+      if (x > view.xmax + 2) { scene.bird.visible = false; result.onScreen = false; return false; }
+      Object.assign(scene.bird, { x, y, heading: Math.atan2(vy - g * t, vx) * 180 / Math.PI });
+      const k = Math.floor(p * 45);
+      if (k !== lastDot || p === 1) { lastDot = k; scene.trail.push({ x, y }); }
+      if (stopCheck && stopCheck(x, y)) { result.stopped = true; return false; }
+      return true;
+    });
+    return result;
+  }
+
+  // Feather explosion for a hit (big) or a small dust puff for a miss.
+  async function burst(wx, wy, big) {
+    scene.bird.visible = false;
+    const px = X(wx), py = Y(wy);
+    const colors = big ? ['#e5383b', '#d62828', '#9d0208', '#f4a261', '#ffba08', '#ffffff', '#1b1b1b']
+                       : ['#b08968', '#ddb892', '#7f5539', '#adb5bd'];
+    const n = big ? 36 : 14, sMin = big ? 90 : 30, sMax = big ? 270 : 90, lift = big ? 90 : 40, dur = big ? 1.4 : 0.75;
+    const parts = Array.from({ length: n }, () => {
+      const a = Math.random() * 2 * Math.PI, sp = sMin + Math.random() * (sMax - sMin);
+      return { vx: sp * Math.cos(a), vy: sp * Math.sin(a) + lift, c: pick(colors), d: big ? pick([8, 10, 12]) : pick([4, 6]) };
+    });
+    const layer = big ? 'particles' : 'puff';
+    await animate(dur, p => {
+      const t = p * dur;
+      scene[layer] = parts.map(q => ({ x: px + q.vx * t, y: py - (q.vy * t - 250 * t * t), r: Math.max(1, q.d * (1 - 0.6 * p)) / 2, c: q.c }));
+      if (big) {
+        scene.flash = t < 0.47 ? { x: px, y: py, r: 10 + 180 * t, c: t < 0.23 ? '#ffba08' : '#ffe8a3' } : null;
+        scene.boom = t > 0.13 ? { x: px, y: py - 72 } : null;
+      }
+    });
+    scene[layer] = []; scene.flash = null; scene.boom = null;
+    if (big) scene.cupFeathers = Array.from({ length: 6 }, () => ({ x: wx + (Math.random() - 0.5) * CUP_D() * 0.9, y: wy, c: pick(colors.slice(0, 3)) }));
+    draw();
+  }
+
+  // ------------------------------- physics -------------------------------
+  function predict(v, h, angleDeg, cupTop) {
+    const g = G(), a = angleDeg * Math.PI / 180, vx = v * Math.cos(a), vy = v * Math.sin(a);
+    const disc = vy * vy + 2 * g * (h - cupTop);
+    if (vx <= 0 || disc < 0) return null;
+    const t = (vy + Math.sqrt(disc)) / g;
+    if (t <= 0) return null;
+    return { x: vx * t, t, vx, vy };
+  }
+
+  // ------------------------------- UI helpers -------------------------------
+  function say(lines) {
+    const el = $('status');
+    el.replaceChildren(...lines.map(([t, cls]) => { const p = document.createElement('p'); p.textContent = t; if (cls) p.className = cls; return p; }));
+  }
+  function setBusy(b) {
+    busy = b;
+    document.querySelectorAll('.side .btn, .tabs button').forEach(el => { el.disabled = b; });
+  }
+  function overlay(html) {
+    const o = $('overlay');
+    if (html == null) { o.hidden = true; return; }
+    $('overlayBox').innerHTML = html;
+    o.hidden = false;
+  }
+
+  // =============================== LAB SIMULATOR ===============================
+  const runs = [];
+  let labRun = null;
+
+  function labSpeed() {
+    const m = document.querySelector('input[name=method]:checked').value;
+    if (m === '1') {
+      const d = num('rollD'), t = num('rollT');
+      if (!(d > 0) || !(t > 0)) return null;
+      return { v: d / t, how: `${fmt(d)} cm ÷ ${fmt(t)} s` };
+    }
+    if (m === '2') {
+      const h = num('pracH'), r = num('pracR');
+      if (!(h > 0) || !(r > 0)) return null;
+      const ft = Math.sqrt(2 * h / G());
+      return { v: r / ft, how: `practice: ${fmt(r)} cm in ${ft.toFixed(3)} s of falling` };
+    }
+    const v = num('knownV');
+    return v > 0 ? { v, how: 'entered directly' } : null;
+  }
+  function updateSpeedReadout() {
+    const m = document.querySelector('input[name=method]:checked').value;
+    document.querySelectorAll('[data-method]').forEach(el => { el.hidden = el.dataset.method !== m; });
+    const sp = labSpeed();
+    $('speedReadout').textContent = sp ? `Launch speed: ${sp.v.toFixed(1)} cm/s` : 'Enter numbers greater than 0.';
+  }
+
+  async function labLaunch(e) {
+    e.preventDefault();
+    if (busy) return;
+    const sp = labSpeed();
+    const h = num('labH'), angle = num('labAngle'), cupTop = num('labCup');
+    if (!sp) return say([['Check Step 1 – the launch speed numbers must be greater than 0.', 'bad big']]);
+    if (!(h > 0)) return say([['Check Step 2 – the launch height must be greater than 0.', 'bad big']]);
+    if (!(angle >= -60 && angle <= 85)) return say([['Check Step 3 – the angle must be between -60° and 85°.', 'bad big']]);
+    if (!(cupTop >= 0)) return say([['Check Step 4 – the cup height can’t be negative.', 'bad big']]);
+    $('realForm').hidden = true;
+    labRun = null;
+
+    const r = predict(sp.v, h, angle, cupTop);
+    if (!r) {
+      setScene({ h, angle, span: 100, top: Math.max(h, cupTop) });
+      return say([["The marble can't reach that cup!", 'bad huge'],
+                  ['The top of the cup is higher than the marble can go. Lower the cup or raise the launch point.', '']]);
+    }
+    const apex = r.vy > 0 ? h + r.vy * r.vy / (2 * G()) : h;
+    setScene({ h, angle, cupX: r.x, cupTop, span: Math.max(1.25 * r.x, 60), top: Math.max(apex, h, cupTop) });
+    const head = [[`Launch speed: ${sp.v.toFixed(1)} cm/s  (${sp.how})`, ''],
+                  [`Launch height: ${fmt(h)} cm · Launch angle: ${fmt(angle)}° · Top of cup: ${fmt(cupTop)} cm`, '']];
+    say(head);
+    setBusy(true);
+    showStage();
+    await sleep(600);
+    await flyPath(r.vx, r.vy, h, 0, r.t, SLOW_MOTION_SECONDS);
+    scene.marks = [r.x];
+    draw();
+    head.push([`Time in the air: ${r.t.toFixed(3)} s`, ''],
+              [`PREDICTION: put the CENTER of the cup ${r.x.toFixed(1)} cm from the edge of the desk`, 'ok big']);
+    say(head);
+    labRun = { n: runs.length + 1, v: sp.v, h, angle, cupTop, xPred: r.x, t: r.t, head };
+    runs.push(labRun);
+    renderLog();
+    setBusy(false);
+    $('realX').value = '';
+    $('realForm').hidden = false;
+  }
+
+  async function labCheck(e) {
+    e.preventDefault();
+    if (busy || !labRun) return;
+    const real = num('realX');
+    if (!(real >= 0)) { $('realX').focus(); return; }
+    const run = labRun, diff = real - run.xPred, pct = Math.abs(diff) / run.xPred * 100, hit = Math.abs(diff) <= CUP_D() / 2;
+    Object.assign(run, { real, diff, pct, hit });
+    scene.realX = real;
+    draw();
+    renderLog();
+    $('realForm').hidden = true;
+    labRun = null;
+    say([...run.head,
+         [`REAL landing: ${fmt(real)} cm → off by ${Math.abs(diff).toFixed(1)} cm (${pct.toFixed(1)}% error)`, 'info big'],
+         [hit ? 'HIT!' : diff > 0 ? 'MISS – too far' : 'MISS – too short', hit ? 'ok huge' : 'bad huge']]);
+    if (hit) { setBusy(true); await burst(run.xPred, run.cupTop, true); setBusy(false); }
+  }
+
+  function renderLog() {
+    const body = $('logBody');
+    body.replaceChildren(...runs.map(r => {
+      const tr = document.createElement('tr');
+      const cells = [r.n, r.v.toFixed(1), fmt(r.h), fmt(r.angle), fmt(r.cupTop), r.xPred.toFixed(1), r.t.toFixed(3),
+                     r.real != null ? fmt(r.real) : '', r.real != null ? Math.abs(r.diff).toFixed(1) : '',
+                     r.real != null ? r.pct.toFixed(1) : '', r.real != null ? (r.hit ? 'HIT' : 'MISS') : ''];
+      cells.forEach((c, i) => {
+        const td = document.createElement('td'); td.textContent = c;
+        if (i === 10 && c) td.className = r.hit ? 'hit' : 'miss';
+        tr.appendChild(td);
+      });
+      return tr;
+    }));
+    $('logEmpty').hidden = runs.length > 0;
+  }
+  async function copyLog() {
+    const header = [...document.querySelectorAll('#logCard thead th')].map(th => th.textContent).join('\t');
+    const rows = [...document.querySelectorAll('#logBody tr')].map(tr => [...tr.children].map(td => td.textContent).join('\t'));
+    const tsv = [header, ...rows].join('\n');
+    const btn = $('copyLog');
+    try {
+      await navigator.clipboard.writeText(tsv);
+    } catch (err) {
+      const ta = document.createElement('textarea');
+      ta.value = tsv; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e2) { /* ignore */ }
+      ta.remove();
+    }
+    btn.textContent = 'Copied! Paste into Excel';
+    setTimeout(() => { btn.textContent = 'Copy table for Excel'; }, 2200);
+  }
+
+  // =============================== TARGET GAME ===============================
+  const game = { h: 76, level: 0, score: 0, attempt: 1, cupX: 0, cupTop: 10, last: null, history: [], phase: 'setup', guess: '' };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const neededSpeed = () => game.cupX / Math.sqrt(2 * (game.h - game.cupTop) / G());
+
+  function renderGame() {
+    const p = $('gamePanel');
+    if (game.phase === 'setup') {
+      p.innerHTML = `
+        <h2>Target game</h2>
+        <p>The cup moves to a new spot each level. Calculate the launch speed that lands the bird in the cup!</p>
+        <ul class="facts">
+          <li>${GAME_LEVELS.length} levels, ${TRIES_PER_LEVEL} tries each</li>
+          <li>Points: 3 on the first try, 2 on the second, 1 on the third</li>
+        </ul>
+        <form id="gameStart" novalidate>
+          <label class="field">Launch height (desk top) above the floor (cm)<input type="number" id="gameH" value="${esc(fmt(game.h))}" step="any" min="20" max="300" inputmode="decimal"></label>
+          <p class="hint">Between 20 and 300 cm.</p>
+          <p></p>
+          <button class="btn primary" type="submit">Start game</button>
+        </form>`;
+      return;
+    }
+    const L = GAME_LEVELS[game.level], fall = game.h - game.cupTop;
+    let html = `
+      <div class="pills"><span class="pill">Level ${game.level + 1} of ${GAME_LEVELS.length}</span><span class="pill score">Score ${game.score}</span></div>
+      <h2 style="margin-top:8px">${esc(L.name)}</h2>
+      <ul class="facts">
+        <li>Launch height: <b>${fmt(game.h)} cm</b></li>
+        <li>Top of cup: <b>${fmt(game.cupTop)} cm</b></li>
+        <li>Fall height: <b>${fmt(fall)} cm</b></li>
+        <li>Center of the cup: <b>${fmt(game.cupX)} cm</b> from the desk edge</li>
+        <li>g = <b>${fmt(G())} cm/s²</b></li>
+      </ul>
+      <div class="formula"><b>Time in the air:</b> t = √(2 × fall height ÷ g)<br><b>Launch speed:</b> v = distance ÷ t</div>`;
+    if (game.phase === 'aim') {
+      html += `
+        <form id="gameShot" novalidate>
+          <label class="field">Launch speed (cm/s)<input type="number" id="gameV" value="${esc(game.guess)}" step="any" min="1" max="5000" inputmode="decimal"></label>
+          <p class="hint">Try ${game.attempt} of ${TRIES_PER_LEVEL}${game.last ? ` · last try ${fmt(game.last.v)} cm/s was <b class="bad">${game.last.diff > 0 ? 'too far' : 'too short'} by ${Math.abs(game.last.diff).toFixed(1)} cm</b>` : ''}</p>
+          <p></p>
+          <button class="btn primary" type="submit">Launch!</button>
+        </form>`;
+    } else if (game.phase === 'between') {
+      const lastLevel = game.level === GAME_LEVELS.length - 1;
+      html += `<button class="btn primary" type="button" data-act="next">${lastLevel ? 'See final score' : `Next level →`}</button>`;
+    } else if (game.phase === 'over') {
+      html += `<button class="btn primary" type="button" data-act="again">Play again</button>`;
+    }
+    if (game.history.length) {
+      html += `<ol class="history">${game.history.map(h => `<li class="${h.hit ? 'hit' : ''}">${esc(h.text)}</li>`).join('')}</ol>`;
+    }
+    p.innerHTML = html;
+  }
+
+  function startGame(e) {
+    e.preventDefault();
+    const h = num('gameH');
+    if (!(h >= 20 && h <= 300)) { say([['The launch height must be between 20 and 300 cm.', 'bad big']]); return; }
+    Object.assign(game, { h, level: 0, score: 0, history: [] });
+    startLevel();
+  }
+  function startLevel() {
+    const L = GAME_LEVELS[game.level];
+    game.cupTop = L.raised == null ? CUP_PICTURE_HEIGHT : Math.min(L.raised, Math.round(0.6 * game.h));
+    game.cupX = L.near + Math.floor(Math.random() * (L.far - L.near + 1));
+    Object.assign(game, { attempt: 1, last: null, phase: 'aim', guess: '' });
+    setScene({ h: game.h, angle: 0, cupX: game.cupX, cupTop: game.cupTop, span: Math.max(1.25 * game.cupX, 60), top: Math.max(game.h, game.cupTop), cupLabel: true });
+    say([[`Level ${game.level + 1}: ${L.name}`, 'navy huge'], ['Calculate the launch speed, type it in, and press Launch!', '']]);
+    renderGame();
+    const inp = $('gameV'); if (inp) inp.focus({ preventScroll: true });
+    showStage();
+  }
+
+  async function gameShot(e) {
+    e.preventDefault();
+    if (busy) return;
+    const v = num('gameV');
+    if (!(v >= 1 && v <= 5000)) { say([['Type a launch speed between 1 and 5000 cm/s.', 'bad big']]); return; }
+    game.guess = fmt(v);
+    const g = G(), tCup = Math.sqrt(2 * (game.h - game.cupTop) / g), diff = v * tCup - game.cupX;
+    const hit = Math.abs(diff) <= CUP_D() / 2;
+    if (scene.trail.length) scene.oldTrails.push(scene.trail);
+    scene.trail = [];
+    scene.cupFeathers = [];
+    scene.bird = { x: 0, y: game.h, heading: 0, visible: true };
+    draw();
+    setBusy(true);
+    showStage();
+    say([[`Try ${game.attempt}: launching at ${fmt(v)} cm/s…`, 'navy big']]);
+    await sleep(450);
+    const res = await flyPath(v, 0, game.h, 0, tCup, SLOW_MOTION_SECONDS);
+    const tag = `Level ${game.level + 1}, try ${game.attempt}: ${fmt(v)} cm/s`;
+
+    if (hit) {
+      await burst(game.cupX, game.cupTop, true);
+      const pts = TRIES_PER_LEVEL + 1 - game.attempt;
+      game.score += pts;
+      game.history.push({ hit: true, text: `${tag} → HIT (+${pts})` });
+      say([['DIRECT HIT!', 'ok huge'], [`+${pts} point${pts > 1 ? 's' : ''} · score ${game.score}`, 'ok big']]);
+      game.phase = 'between';
+    } else {
+      if (res.onScreen) {   // keep falling to the stool seat or the floor
+        const cupBottom = Math.max(0, game.cupTop - CUP_PICTURE_HEIGHT), hw = stoolHalf(), tLand = Math.sqrt(2 * game.h / g);
+        const onStool = (x, y) => cupBottom > 0 && Math.abs(x - game.cupX) <= hw && y <= cupBottom;
+        const r2 = await flyPath(v, 0, game.h, tCup, tLand, SLOW_MOTION_SECONDS * (tLand - tCup) / tCup, onStool);
+        if (r2.onScreen) {
+          const yLand = r2.stopped ? cupBottom : 0, xLand = r2.stopped ? scene.bird.x : v * tLand;
+          await burst(xLand, yLand, false);
+        }
+      }
+      const word = diff > 0 ? 'too far' : 'too short';
+      game.history.push({ hit: false, text: `${tag} → ${word} by ${Math.abs(diff).toFixed(1)} cm` });
+      game.last = { v, diff };
+      game.attempt += 1;
+      if (game.attempt > TRIES_PER_LEVEL) {
+        say([[`MISS – ${word} by ${Math.abs(diff).toFixed(1)} cm`, 'bad big'],
+             [`Out of tries! The correct speed was ${neededSpeed().toFixed(1)} cm/s`, 'navy big']]);
+        game.phase = 'between';
+      } else {
+        say([[`MISS – ${word} by ${Math.abs(diff).toFixed(1)} cm`, 'bad huge'], ['Adjust your speed and try again.', '']]);
+      }
+    }
+    setBusy(false);
+    renderGame();
+    const inp = $('gameV'); if (inp) { inp.focus({ preventScroll: true }); inp.select(); }
+  }
+
+  function nextLevel() {
+    if (game.level < GAME_LEVELS.length - 1) { game.level += 1; startLevel(); return; }
+    game.phase = 'over';
+    renderGame();
+    const max = TRIES_PER_LEVEL * GAME_LEVELS.length;
+    const stars = game.score >= max - 1 ? 3 : game.score >= Math.floor(max / 2) ? 2 : game.score > 0 ? 1 : 0;
+    const msg = ['Keep practicing – check your fall height and your square root!',
+                 "Nice work – you're getting the hang of projectile motion.",
+                 'Great job – solid physics!',
+                 'PERFECT AIM – physics master!'][stars];
+    say([['Game over', 'navy huge'], [`Final score: ${game.score} out of ${max}`, 'big']]);
+    overlay(`<h2>Game over</h2>
+      <div class="stars" aria-label="${stars} of 3 stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
+      <p class="huge">Score: ${game.score} out of ${max}</p>
+      <p>${esc(msg)}</p>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" type="button" data-act="again">Play again</button>
+        <button class="btn secondary" type="button" data-act="lab">Lab simulator</button>
+      </div>`);
+  }
+
+  // =============================== modes ===============================
+  function setMode(m) {
+    mode = m;
+    overlay(null);
+    $('tab-lab').setAttribute('aria-selected', String(m === 'lab'));
+    $('tab-game').setAttribute('aria-selected', String(m === 'game'));
+    $('labPanel').hidden = m !== 'lab';
+    $('gamePanel').hidden = m !== 'game';
+    $('logCard').hidden = m !== 'lab';
+    try { history.replaceState(null, '', m === 'game' ? '#game' : '#lab'); } catch (e) { /* ignore */ }
+    if (m === 'lab') {
+      $('realForm').hidden = true;
+      labRun = null;
+      setScene({ h: num('labH') > 0 ? num('labH') : 76, angle: 0, span: 100, top: 76 });
+      say([['Lab simulator', 'navy huge'], ['Enter your measurements in Steps 1–4, then press Launch!', '']]);
+    } else {
+      game.phase = 'setup';
+      setScene({ h: game.h, angle: 0, span: 100, top: game.h });
+      say([['Target game', 'navy huge'], ['Enter the launch height and press Start game.', '']]);
+      renderGame();
+    }
+  }
+
+  function welcome() {
+    overlay(`<h2>Hit the Cup!</h2>
+      <p>Choose a mode:</p>
+      <div class="choices">
+        <button class="choice" type="button" data-act="lab"><b>Lab simulator</b><span>Enter your measurements and predict where the marble lands.</span></button>
+        <button class="choice" type="button" data-act="game"><b>Target game</b><span>The cup moves – calculate the speed that lands the bird in it.</span></button>
+      </div>`);
+  }
+
+  // =============================== wiring ===============================
+  function resize() {
+    const w = Math.max(280, Math.floor($('canvasWrap').clientWidth));
+    if (w === W && canvas.width) return;
+    W = w;
+    H = Math.round(Math.min(600, Math.max(300, W * 0.56)));
+    DPR = window.devicePixelRatio || 1;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.height = H + 'px';
+    if (scene) { computeView(); draw(); }
+  }
+
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => { if (!busy) setMode(b.dataset.mode); }));
+  $('labForm').addEventListener('submit', labLaunch);
+  $('labForm').addEventListener('input', updateSpeedReadout);
+  $('labForm').addEventListener('change', updateSpeedReadout);
+  $('realForm').addEventListener('submit', labCheck);
+  $('realSkip').addEventListener('click', () => { $('realForm').hidden = true; labRun = null; });
+  $('copyLog').addEventListener('click', copyLog);
+  $('clearLog').addEventListener('click', () => { runs.length = 0; renderLog(); });
+  $('gamePanel').addEventListener('submit', e => { if (e.target.id === 'gameStart') startGame(e); else if (e.target.id === 'gameShot') gameShot(e); });
+  $('gamePanel').addEventListener('click', e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'next') nextLevel();
+    if (act === 'again') { overlay(null); game.phase = 'setup'; setMode('game'); }
+  });
+  $('overlayBox').addEventListener('click', e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'lab') setMode('lab');
+    if (act === 'game' || act === 'again') setMode('game');
+  });
+  $('gravity').addEventListener('change', () => { if (mode === 'game' && game.phase !== 'setup') renderGame(); });
+
+  drawBird($('logo').getContext('2d'), 50, 56, 12, 3.4);
+  resize();
+  new ResizeObserver(resize).observe($('canvasWrap'));
+  updateSpeedReadout();
+  renderLog();
+  const startHash = location.hash;
+  setMode(startHash === '#game' ? 'game' : 'lab');
+  if (!startHash) welcome();
+})();
+</script>
+</body>
+</html>
