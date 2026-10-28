@@ -105,6 +105,17 @@
   .history { font-size: .88rem; color: var(--muted); padding-left: 20px; margin: 10px 0 0; }
   .history li.hit { color: var(--green); font-weight: 600; }
 
+  .bird-types { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0; }
+  .bird-type { border: 2px solid var(--line); background: #fff; border-radius: 10px; padding: 4px 2px 6px; cursor: pointer;
+               font: inherit; font-size: .8rem; font-weight: 600; color: var(--ink); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .bird-type canvas { width: 56px; height: 56px; }
+  .bird-type:hover { border-color: #9fb3c8; }
+  .bird-type[aria-checked="true"] { border-color: var(--navy); background: #eef4fb; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #b8c6d4; cursor: pointer; padding: 0; }
+  .swatch[aria-checked="true"] { box-shadow: 0 0 0 3px var(--navy); }
+  input[type=color] { width: 100%; height: 36px; border: 1px solid #b8c6d4; border-radius: 8px; padding: 2px; background: #fff; cursor: pointer; }
+
   details.settings { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
   summary { cursor: pointer; font-weight: 650; color: var(--navy); }
 
@@ -202,6 +213,13 @@
       <!-- ================= TARGET GAME ================= -->
       <div id="gamePanel" hidden></div>
 
+      <details class="settings" open>
+        <summary>Choose your bird</summary>
+        <div class="bird-types" id="birdTypes" role="radiogroup" aria-label="Bird type"></div>
+        <div class="swatches" id="birdColors" role="radiogroup" aria-label="Bird color"></div>
+        <label class="field">Custom color<input type="color" id="birdCustom" value="#e5383b"></label>
+      </details>
+
       <details class="settings">
         <summary>Teacher settings</summary>
         <label class="field">Gravity
@@ -272,28 +290,86 @@
   // On phones the controls sit below the animation, so bring the animation into view when launching.
   const showStage = () => { if (window.matchMedia('(max-width: 920px)').matches) $('canvasWrap').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 
-  // ------------------------------- the red bird -------------------------------
-  // Drawn facing right: x = forward, y = up (pixels). Same shapes as the Python version.
+  // ------------------------------- the birds -------------------------------
+  // Each bird is drawn facing right: x = forward, y = up (pixels).
+  // Part colors are either a fixed color or a role (body, mid, dark, outline, light)
+  // that is worked out from the color the student picks.
   const circlePts = (cx, cy, r, n = 18) => Array.from({ length: n }, (_, i) => [cx + r * Math.cos(2 * Math.PI * i / n), cy + r * Math.sin(2 * Math.PI * i / n)]);
   const ellipsePts = (cx, cy, rx, ry, n = 16) => Array.from({ length: n }, (_, i) => [cx + rx * Math.cos(2 * Math.PI * i / n), cy + ry * Math.sin(2 * Math.PI * i / n)]);
-  const BIRD = [
-    [[[-9, 3], [-21, 9], [-23, 2], [-20, -5], [-9, -3]], '#9d0208', '#6a040f'],   // tail
-    [[[-2, 10], [5, 10], [-4, 17], [-9, 21], [-6, 15]], '#d62828', '#6a040f'],    // crest
-    [circlePts(0, 0, 11.5, 28), '#e5383b', '#6a040f'],                            // body
-    [ellipsePts(-3, -2, 7, 4.5), '#a4161a', '#6a040f'],                           // wing
-    [ellipsePts(9, 1, 4.5, 5.5), '#1b1b1b', '#1b1b1b'],                           // face mask
-    [[[10, 4], [19, 0.5], [10, -2.5]], '#f4a261', '#9c4a1a'],                     // beak
-    [circlePts(6.5, 4.5, 2.3, 12), '#ffffff', '#1b1b1b'],                         // eye
-    [circlePts(7.2, 4.5, 1.1, 10), '#000000', '#000000'],                         // pupil
+  const BEAK = '#f4a261', BEAK_LINE = '#9c4a1a', INK = '#1b1b1b';
+  const BIRD_TYPES = {
+    cardinal: { name: 'Cardinal', parts: [
+      [[[-9, 3], [-21, 9], [-23, 2], [-20, -5], [-9, -3]], 'dark', 'outline'],     // tail
+      [[[-2, 10], [5, 10], [-4, 17], [-9, 21], [-6, 15]], 'mid', 'outline'],       // crest
+      [circlePts(0, 0, 11.5, 28), 'body', 'outline'],                              // body
+      [ellipsePts(-3, -2, 7, 4.5), 'dark', 'outline'],                             // wing
+      [ellipsePts(9, 1, 4.5, 5.5), INK, INK],                                      // face mask
+      [[[10, 4], [19, 0.5], [10, -2.5]], BEAK, BEAK_LINE],                         // beak
+      [circlePts(6.5, 4.5, 2.3, 12), '#ffffff', INK],                              // eye
+      [circlePts(7.2, 4.5, 1.1, 10), '#000000', '#000000'],                        // pupil
+    ] },
+    owl: { name: 'Owl', parts: [
+      [[[-9, -2], [-17, -6], [-16, -11], [-8, -8]], 'dark', 'outline'],            // tail
+      [[[-6, 9], [-9, 19], [-1, 12]], 'dark', 'outline'],                          // ear tuft
+      [[[4, 11.5], [8, 20], [10, 9]], 'dark', 'outline'],                          // ear tuft
+      [ellipsePts(0, 0, 11.5, 12.5, 28), 'body', 'outline'],                       // body
+      [ellipsePts(-4, -3, 6, 5), 'dark', 'outline'],                               // wing
+      [ellipsePts(4.5, 3, 7.5, 6.5, 22), 'light', 'outline'],                      // face disk
+      [circlePts(1.5, 4, 3, 14), '#ffffff', INK],                                  // eye
+      [circlePts(7.5, 4, 3, 14), '#ffffff', INK],                                  // eye
+      [circlePts(2.2, 4, 1.5, 10), '#000000', '#000000'],                          // pupil
+      [circlePts(8.2, 4, 1.5, 10), '#000000', '#000000'],                          // pupil
+      [[[3.6, 1.5], [5.6, 1.5], [4.6, -2.4]], BEAK, BEAK_LINE],                    // beak
+    ] },
+    penguin: { name: 'Penguin', parts: [
+      [ellipsePts(-3, -13, 3.5, 1.6, 10), BEAK, BEAK_LINE],                        // foot
+      [ellipsePts(4, -13, 3.5, 1.6, 10), BEAK, BEAK_LINE],                         // foot
+      [ellipsePts(0, 0, 10.5, 13, 28), 'body', 'outline'],                         // body
+      [ellipsePts(3, -2.5, 7, 9.5, 24), '#ffffff', '#cfd8e3'],                     // belly
+      [[[-2, 3], [-12, -7], [-8, -9], [0, -1]], 'dark', 'outline'],                // flipper
+      [[[7, 6], [16, 4], [7, 2.5]], BEAK, BEAK_LINE],                              // beak
+      [circlePts(4.5, 7.5, 2.1, 12), '#ffffff', INK],                              // eye
+      [circlePts(5.1, 7.5, 1.0, 10), '#000000', '#000000'],                        // pupil
+    ] },
+    chick: { name: 'Chick', parts: [
+      [[[-9, 1], [-15, 5], [-15, -3], [-9, -3]], 'dark', 'outline'],               // tail
+      [[[-2, 10.5], [-5, 17], [0, 11]], 'dark', 'outline'],                        // tuft
+      [[[1, 10.8], [2, 18], [3.5, 10.5]], 'dark', 'outline'],                      // tuft
+      [circlePts(0, 0, 11, 28), 'body', 'outline'],                                // body
+      [ellipsePts(-3, -3, 6, 4), 'mid', 'outline'],                                // wing
+      [circlePts(7, 0, 2.2, 10), '#ff8fab', '#ff8fab'],                            // cheek
+      [[[10, 3], [16, 1], [10, -1]], BEAK, BEAK_LINE],                             // beak
+      [circlePts(6, 4.5, 1.9, 10), INK, INK],                                      // eye
+      [circlePts(6.6, 5.2, 0.6, 6), '#ffffff', '#ffffff'],                         // eye shine
+    ] },
+  };
+  const BIRD_COLORS = [
+    ['Red', '#e5383b'], ['Orange', '#f77f00'], ['Yellow', '#ffd23f'], ['Green', '#3fa34d'], ['Teal', '#2a9d8f'],
+    ['Blue', '#3a86ff'], ['Purple', '#8338ec'], ['Pink', '#ff5d8f'], ['Brown', '#8d5a3b'], ['Gray', '#6c757d'],
   ];
-  function drawBird(c, px, py, headingDeg, scale) {
+  const hexToRgb = h => { const n = parseInt(h.replace('#', ''), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const mix = (hex, target, f) => '#' + hexToRgb(hex).map(v => Math.round(v + (target - v) * f).toString(16).padStart(2, '0')).join('');
+  const palette = base => ({ body: base, mid: mix(base, 0, 0.08), dark: mix(base, 0, 0.32), outline: mix(base, 0, 0.55), light: mix(base, 255, 0.6) });
+
+  let birdLook = { type: 'cardinal', color: '#e5383b' };
+  try {
+    const saved = JSON.parse(localStorage.getItem('hitTheCup.bird') || 'null');
+    if (saved && BIRD_TYPES[saved.type] && /^#[0-9a-f]{6}$/i.test(saved.color)) birdLook = saved;
+  } catch (e) { /* storage unavailable - use the default bird */ }
+  const resolveBird = look => {
+    const pal = palette(look.color);
+    return BIRD_TYPES[look.type].parts.map(([pts, f, st]) => [pts, pal[f] || f, pal[st] || st]);
+  };
+  let BIRD = resolveBird(birdLook);
+
+  function drawBird(c, px, py, headingDeg, scale, parts = BIRD) {
     c.save();
     c.translate(px, py);
     c.rotate(-headingDeg * Math.PI / 180);
     c.scale(scale, -scale);
     c.lineWidth = 1 / scale;
     c.lineJoin = 'round';
-    for (const [pts, fill, stroke] of BIRD) {
+    for (const [pts, fill, stroke] of parts) {
       c.beginPath();
       pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
       c.closePath();
@@ -476,7 +552,8 @@
   async function burst(wx, wy, big) {
     scene.bird.visible = false;
     const px = X(wx), py = Y(wy);
-    const colors = big ? ['#e5383b', '#d62828', '#9d0208', '#f4a261', '#ffba08', '#ffffff', '#1b1b1b']
+    const pal = palette(birdLook.color);
+    const colors = big ? [pal.body, pal.mid, pal.dark, pal.light, '#ffba08', '#ffffff', INK]
                        : ['#b08968', '#ddb892', '#7f5539', '#adb5bd'];
     const n = big ? 36 : 14, sMin = big ? 90 : 30, sMax = big ? 270 : 90, lift = big ? 90 : 40, dur = big ? 1.4 : 0.75;
     const parts = Array.from({ length: n }, () => {
@@ -856,7 +933,55 @@
   });
   $('gravity').addEventListener('change', () => { if (mode === 'game' && game.phase !== 'setup') renderGame(); });
 
-  drawBird($('logo').getContext('2d'), 50, 56, 12, 3.4);
+  // ---------------------------- bird picker ----------------------------
+  function drawLogo() {
+    const c = $('logo').getContext('2d');
+    c.clearRect(0, 0, 104, 104);
+    drawBird(c, 50, 56, 12, 3.4);
+  }
+  function buildBirdPicker() {
+    $('birdTypes').replaceChildren(...Object.entries(BIRD_TYPES).map(([key, t]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'bird-type'; b.dataset.type = key;
+      b.setAttribute('role', 'radio');
+      const cv = document.createElement('canvas'); cv.width = 112; cv.height = 112; cv.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('span'); label.textContent = t.name;
+      b.append(cv, label);
+      return b;
+    }));
+    $('birdColors').replaceChildren(...BIRD_COLORS.map(([name, hex]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'swatch'; b.dataset.color = hex;
+      b.style.background = hex;
+      b.setAttribute('role', 'radio'); b.setAttribute('aria-label', name); b.title = name;
+      return b;
+    }));
+  }
+  function refreshBirdPicker() {
+    document.querySelectorAll('.bird-type').forEach(b => {
+      b.setAttribute('aria-checked', String(b.dataset.type === birdLook.type));
+      const c = b.querySelector('canvas').getContext('2d');
+      c.clearRect(0, 0, 112, 112);
+      drawBird(c, 54, 58, 0, 3.2, resolveBird({ type: b.dataset.type, color: birdLook.color }));
+    });
+    document.querySelectorAll('.swatch').forEach(b => b.setAttribute('aria-checked', String(b.dataset.color.toLowerCase() === birdLook.color.toLowerCase())));
+    $('birdCustom').value = birdLook.color;
+  }
+  function setBird(change) {
+    birdLook = Object.assign({}, birdLook, change);
+    BIRD = resolveBird(birdLook);
+    try { localStorage.setItem('hitTheCup.bird', JSON.stringify(birdLook)); } catch (e) { /* ignore */ }
+    refreshBirdPicker();
+    drawLogo();
+    draw();
+  }
+  $('birdTypes').addEventListener('click', e => { const b = e.target.closest('.bird-type'); if (b) setBird({ type: b.dataset.type }); });
+  $('birdColors').addEventListener('click', e => { const b = e.target.closest('.swatch'); if (b) setBird({ color: b.dataset.color }); });
+  $('birdCustom').addEventListener('input', e => setBird({ color: e.target.value }));
+  buildBirdPicker();
+  refreshBirdPicker();
+  drawLogo();
+
   resize();
   new ResizeObserver(resize).observe($('canvasWrap'));
   updateSpeedReadout();
